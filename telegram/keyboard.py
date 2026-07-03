@@ -1,53 +1,92 @@
 """
-Telegram Inline Keyboards
+telegram/keyboard.py
 """
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+)
 
 
-# =====================================================
-# MAIN CONTROL PANEL
-# =====================================================
+def main_menu():
+    """
+    منوی اصلی ربات
+    """
 
-
-def main_keyboard():
     keyboard = [
         [
-            InlineKeyboardButton("📊 Status", callback_data="status"),
-            InlineKeyboardButton("💰 PnL", callback_data="pnl"),
+            InlineKeyboardButton(
+                "🚀 Start Bot",
+                callback_data="bot_start",
+            ),
+            InlineKeyboardButton(
+                "🛑 Stop Bot",
+                callback_data="bot_stop",
+            ),
         ],
         [
-            InlineKeyboardButton("📡 Signal BTC", callback_data="signal_BTCUSDT"),
-            InlineKeyboardButton("📡 Signal ETH", callback_data="signal_ETHUSDT"),
+            InlineKeyboardButton(
+                "♻️ Restart",
+                callback_data="bot_restart",
+            ),
+            InlineKeyboardButton(
+                "📊 Status",
+                callback_data="bot_status",
+            ),
         ],
         [
-            InlineKeyboardButton("🛑 Stop Bot", callback_data="stop"),
-            InlineKeyboardButton("🚀 Start Bot", callback_data="start"),
+            InlineKeyboardButton(
+                "💰 Balance",
+                callback_data="balance",
+            ),
+            InlineKeyboardButton(
+                "📈 Positions",
+                callback_data="positions",
+            ),
         ],
         [
-            InlineKeyboardButton("🛡 Risk", callback_data="risk"),
+            InlineKeyboardButton(
+                "📑 Orders",
+                callback_data="orders",
+            ),
+            InlineKeyboardButton(
+                "💵 PNL",
+                callback_data="pnl",
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                "⚙️ Settings",
+                callback_data="settings",
+            ),
+            InlineKeyboardButton(
+                "📋 Logs",
+                callback_data="logs",
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                "🔄 Refresh",
+                callback_data="refresh",
+            )
         ],
     ]
 
     return InlineKeyboardMarkup(keyboard)
 
 
-# =====================================================
-# SIGNAL KEYBOARD
-# =====================================================
-
-
-def signal_keyboard(symbol: str):
+def back_menu():
+    """
+    دکمه بازگشت
+    """
 
     keyboard = [
         [
             InlineKeyboardButton(
-                f"📡 Refresh {symbol}", callback_data=f"signal_{symbol}"
+                "⬅️ بازگشت",
+                callback_data="main_menu",
             )
-        ],
-        [
-            InlineKeyboardButton("📊 Status", callback_data="status"),
-        ],
+        ]
     ]
 
     return InlineKeyboardMarkup(keyboard)

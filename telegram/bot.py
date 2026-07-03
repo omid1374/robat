@@ -1,70 +1,64 @@
 """
-Telegram Bot main entry
+telegram/bot.py
 """
+
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    CallbackQueryHandler,
+)
+
 from telegram.commands import (
     start_command,
     stop_command,
-    status_command,
     restart_command,
+    status_command,
+    help_command,
+    ping_command,
 )
-from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
 
-from telegram.commands import start_command, status_command, stop_command
-
-app.add_handler(CommandHandler("restart", restart_command))
+from telegram.callbacks import callback_handler
 
 
 class TelegramBot:
-    def __init__(self, token: str, engine):
-
+    def __init__(self, token: str):
         self.token = token
-
-        self.engine = engine
 
         self.app = Application.builder().token(token).build()
 
         self._register_handlers()
 
-    # -----------------------------------------
-    # REGISTER COMMANDS
-    # -----------------------------------------
+    # ----------------------------------
+    # Register Handlers
+    # ----------------------------------
 
     def _register_handlers(self):
 
-        self.app.add_handler(CommandHandler("start", self._start))
-        self.app.add_handler(CommandHandler("status", self._status))
-        self.app.add_handler(CommandHandler("stop", self._stop))
+        # Command Handlers
+        self.app.add_handler(CommandHandler("start", start_command))
+        self.app.add_handler(CommandHandler("stop", stop_command))
+        self.app.add_handler(CommandHandler("restart", restart_command))
+        self.app.add_handler(CommandHandler("status", status_command))
+        self.app.add_handler(CommandHandler("help", help_command))
+        self.app.add_handler(CommandHandler("ping", ping_command))
 
-    
-    # -----------------------------------------
-    # WRAPPERS
-    # -----------------------------------------
+        # Callback Buttons
+        self.app.add_handler(CallbackQueryHandler(callback_handler))
 
-    async def _start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-        await update.message.reply_text("Bot started 🚀")
-
-        self.engine.running = True
-
-    async def _stop(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-        await update.message.reply_text("Bot stopped ⛔")
-
-        self.engine.running = False
-
-    async def _status(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-        status = self.engine.running
-
-        await update.message.reply_text(
-            f"Engine status: {'RUNNING' if status else 'STOPPED'}"
-        )
-
-    # -----------------------------------------
-    # RUN
-    # -----------------------------------------
+    # ----------------------------------
+    # Start Bot
+    # ----------------------------------
 
     def run(self):
+        self.app.run_polling(
+            drop_pending_updates=True,
+            allowed_updates=None,
+        )
 
-        self.app.run_polling()
+    # ----------------------------------
+    # Stop Bot
+    # ----------------------------------
+
+    async def stop(self):
+        await self.app.stop()
+        await self.app.shutdown()

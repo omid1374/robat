@@ -4,7 +4,7 @@ telegram/commands.py
 
 from telegram import Update
 from telegram.ext import ContextTypes
-
+from telegram.messages import send_main_menu
 from core.bot_controller import BotController
 
 
@@ -12,19 +12,19 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     controller = BotController.instance()
 
     if controller.is_running:
-        await update.message.reply_text("🟢 ربات هم‌اکنون در حال اجراست.")
+        await update.message.reply_text("🟢 ربات در حال اجراست.")
         return
 
     await controller.start()
 
-    await update.message.reply_text("🚀 ربات با موفقیت راه‌اندازی شد.")
+    await send_main_menu(update, context)
 
 
 async def stop_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     controller = BotController.instance()
 
     if not controller.is_running:
-        await update.message.reply_text("🔴 ربات از قبل متوقف بوده است.")
+        await update.message.reply_text("🔴 ربات متوقف است.")
         return
 
     await controller.stop()
@@ -43,8 +43,38 @@ async def restart_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     controller = BotController.instance()
 
-    status = "🟢 فعال" if controller.is_running else "🔴 متوقف"
+    text = "🟢 وضعیت: فعال\n" if controller.is_running else "🔴 وضعیت: متوقف\n"
 
-    msg = f"وضعیت ربات: {status}\nTask فعال: {controller.task_count}\n"
+    text += f"Task فعال: {controller.task_count}"
 
-    await update.message.reply_text(msg)
+    await update.message.reply_text(text)
+
+
+async def ping_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("🏓 Pong")
+
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = """
+دستورات ربات
+
+/start
+راه‌اندازی ربات
+
+/stop
+توقف ربات
+
+/restart
+راه‌اندازی مجدد
+
+/status
+نمایش وضعیت
+
+/ping
+تست اتصال
+
+/help
+راهنما
+"""
+
+    await update.message.reply_text(text)
