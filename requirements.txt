@@ -1,2 +1,6 @@
+python-telegram-bot
+ccxt
 fastapi
 uvicorn
+python-dotenv
+aiohttp
