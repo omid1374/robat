@@ -1,227 +1,124 @@
 """
 engine.py
 
-Core trading engine.
+FINAL ARCHITECTURE (Multi-Timeframe Based Engine)
 """
-
-from __future__ import annotations
 
 import asyncio
 import logging
-import traceback
 from datetime import datetime
 
-from exchange import client
-from config import SYMBOLS
+from indicators_engine.calculate_live_indicators import calculate_live_indicators
+
 from buy_manager import BuyManager
 from sell_manager import SellManager
 from risk_manager import RiskManager
-from telegram_logger import TelegramLogger
+
+from exchange import client
+from config import SYMBOLS
+
 
 logger = logging.getLogger(__name__)
 
 
 class TradingEngine:
-
     def __init__(self):
 
         self.client = client
 
+        self.symbols = SYMBOLS
+
         self.running = False
 
-        self.buy_manager = BuyManager(
-            self.client,
-            RiskManager(),
-        )
+        self.risk_manager = RiskManager()
 
-        self.sell_manager = SellManager(
-            self.client,
-            RiskManager(),
-        )
+        self.buy_manager = BuyManager(self.client, self.risk_manager)
 
-        self.telegram = TelegramLogger()
-
-        self.symbols = SYMBOLS
+        self.sell_manager = SellManager(self.client, self.risk_manager)
 
         self.loop_delay = 2
 
-        self.last_run = None
+    # -----------------------------------------------------
+    # INIT
+    # -----------------------------------------------------
 
     async def initialize(self):
 
-        logger.info("=" * 60)
-        logger.info("Initializing Trading Engine...")
-        logger.info("=" * 60)
+        logger.info("Starting Engine...")
 
-        try:
+        await self.client.connect()
 
-            await self.client.connect()
+        await self.client.load_markets()
 
-            logger.info("Exchange Connected.")
+        self.running = True
 
-            markets = await self.client.load_markets()
+        logger.info("Engine initialized successfully.")
 
-            logger.info(
-                "%d markets loaded.",
-                len(markets),
-            )
-
-            self.running = True
-
-            await self.telegram.send(
-                "🤖 Trading Engine Started."
-            )
-
-        except Exception:
-
-            logger.exception("Initialization failed.")
-
-            raise
+    # -----------------------------------------------------
+    # MAIN LOOP
+    # -----------------------------------------------------
 
     async def run(self):
 
         logger.info("Engine loop started.")
 
         while self.running:
-
             try:
-
-                self.last_run = datetime.utcnow()
-
                 await self.process_all_symbols()
 
-                await asyncio.sleep(
-                    self.loop_delay
-                )
+                await asyncio.sleep(self.loop_delay)
 
-            except asyncio.CancelledError:
+            except Exception as e:
+                logger.exception(f"Engine loop error: {e}")
 
-                raise
+                await asyncio.sleep(3)
 
-            except Exception:
-
-                logger.error(traceback.format_exc())
-
-                await asyncio.sleep(5)
+    # -----------------------------------------------------
+    # PROCESS ALL SYMBOLS
+    # -----------------------------------------------------
 
     async def process_all_symbols(self):
 
         tasks = []
 
         for symbol in self.symbols:
+            tasks.append(self.process_symbol(symbol))
 
-            tasks.append(
-                self.process_symbol(symbol)
-            )
+        await asyncio.gather(*tasks, return_exceptions=True)
 
-        await asyncio.gather(
-            *tasks,
-            return_exceptions=True,
-        )
-        
-from calculate_live_indicators import calculate_live_indicators
-
+    # -----------------------------------------------------
+    # PROCESS SINGLE SYMBOL
+    # -----------------------------------------------------
 
     async def process_symbol(self, symbol: str):
 
-        logger.info("------------------------------------------")
-        logger.info("Processing %s", symbol)
-
         try:
+            logger.info(f"Processing {symbol}")
 
-            # ---------------------------------
-            # Check Exchange Connection
-            # ---------------------------------
-
-            if not await self.client.ping():
-
-                logger.warning(
-                    "%s : Exchange unavailable.",
-                    symbol,
-                )
-
-                return
-
-            # ---------------------------------
-            # Get Current Position
-            # ---------------------------------
-
-            position = await self.client.fetch_position(
-                symbol
-            )
-
-            # ---------------------------------
-            # Get Open Orders
-            # ---------------------------------
-
-            open_orders = await self.client.fetch_open_orders(
-                symbol
-            )
-
-            logger.info(
-                "%s | Position=%s | Orders=%d",
-                symbol,
-                bool(position),
-                len(open_orders),
-            )
-
-            # ---------------------------------
-            # Calculate Indicators
-            # ---------------------------------
-
+            # 1. GET SIGNAL FROM MTF ENGINE
             signal = await calculate_live_indicators(
                 client=self.client,
                 symbol=symbol,
             )
 
-            if signal is None:
+            if not signal:
+                return
 
-                logger.warning(
-                    "%s : Indicator returned None",
-                    symbol,
-                )
+            logger.info(
+                f"{symbol} | Signal: "
+                f"BUY={signal['buy']} "
+                f"SELL={signal['sell']} "
+                f"CONF={signal['confidence']}"
+            )
+
+            # 2. RISK CHECK
+            if not self.risk_manager.can_open_trade():
+                logger.info(f"{symbol} | Risk blocked trade")
 
                 return
 
-            # ---------------------------------
-            # Risk Validation
-            # ---------------------------------
-
-            risk = RiskManager()
-
-            if not risk.can_open_trade():
-
-                logger.info(
-                    "%s : Risk manager rejected trade.",
-                    symbol,
-                )
-
-                return
-
-            # ---------------------------------
-            # Existing Position
-            # ---------------------------------
-
-            if position:
-
-                logger.info(
-                    "%s : Position already exists.",
-                    symbol,
-                )
-
-                return
-
-            # ---------------------------------
-            # BUY Signal
-            # ---------------------------------
-
-            if signal.get("buy"):
-
-                logger.info(
-                    "%s : BUY signal detected.",
-                    symbol,
-                )
-
+            # 3. BUY LOGIC
+            if signal["buy"]:
                 await self.buy_manager.execute(
                     symbol=symbol,
                     signal=signal,
@@ -229,17 +126,8 @@ from calculate_live_indicators import calculate_live_indicators
 
                 return
 
-            # ---------------------------------
-            # SELL Signal
-            # ---------------------------------
-
-            if signal.get("sell"):
-
-                logger.info(
-                    "%s : SELL signal detected.",
-                    symbol,
-                )
-
+            # 4. SELL LOGIC
+            if signal["sell"]:
                 await self.sell_manager.execute(
                     symbol=symbol,
                     signal=signal,
@@ -247,18 +135,23 @@ from calculate_live_indicators import calculate_live_indicators
 
                 return
 
-            logger.info(
-                "%s : No trading signal.",
-                symbol,
-            )
+        except Exception as e:
+            logger.exception(f"Error processing {symbol}: {e}")
+
+    # -----------------------------------------------------
+    # SHUTDOWN
+    # -----------------------------------------------------
+
+    async def shutdown(self):
+
+        logger.info("Shutting down engine...")
+
+        self.running = False
+
+        try:
+            await self.client.close()
 
         except Exception:
+            pass
 
-            logger.exception(
-                "process_symbol() failed for %s",
-                symbol,
-            )
-
-            await self.telegram.send(
-                f"❌ Engine Error ({symbol})"
-            )
+        logger.info("Engine stopped.")

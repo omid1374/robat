@@ -1,174 +1,115 @@
 """
 risk_manager.py
 
-مدیریت ریسک ربات BloFin
+Professional Risk Management System (Prop-Firm Style)
 """
 
-import logging
 from datetime import datetime, timedelta
-
-from exchange import client
-from config import (
-    SYMBOL,
-    MAX_INVENTORY,
-    MAX_ALLOWED_LOSS,
-    COOLDOWN_MINUTES,
-)
-
-logger = logging.getLogger(__name__)
 
 
 class RiskManager:
     def __init__(self):
 
-        self.cooldown_until = datetime.min
+        # -------------------------
+        # Account Limits
+        # -------------------------
 
-    # -------------------------
-    # Cooldown
-    # -------------------------
+        self.max_daily_loss_percent = 3.0
 
-    @property
-    def in_cooldown(self):
+        self.max_drawdown_percent = 10.0
 
-        return datetime.utcnow() < self.cooldown_until
+        self.max_trades_per_day = 20
 
-    def start_cooldown(self):
+        self.max_consecutive_losses = 3
 
-        self.cooldown_until = datetime.utcnow() + timedelta(minutes=COOLDOWN_MINUTES)
+        self.cooldown_after_loss_sec = 300
 
-        logger.warning(f"Cooldown started until {self.cooldown_until}")
+        # -------------------------
+        # Runtime State
+        # -------------------------
 
-    # -------------------------
-    # دریافت پوزیشن
-    # -------------------------
+        self.daily_start_balance = None
 
-    async def get_position(self):
+        self.current_balance = None
 
-        positions = await client.fetch_positions(SYMBOL)
+        self.daily_loss = 0.0
 
-        if not positions:
-            return None
+        self.trades_today = 0
 
-        for pos in positions:
-            contracts = pos.get("contracts")
+        self.consecutive_losses = 0
 
-            if contracts is None:
-                continue
+        self.last_loss_time = None
 
-            if float(contracts) == 0:
-                continue
+    # -----------------------------------------------------
+    # UPDATE BALANCE
+    # -----------------------------------------------------
 
-            return pos
+    def update_balance(self, balance: float):
 
-        return None
+        if self.daily_start_balance is None:
+            self.daily_start_balance = balance
 
-    # -------------------------
-    # موجودی پوزیشن
-    # -------------------------
+        self.current_balance = balance
 
-    async def inventory(self):
+        self.daily_loss = (
+            (self.daily_start_balance - self.current_balance) / self.daily_start_balance
+        ) * 100
 
-        pos = await self.get_position()
+    # -----------------------------------------------------
+    # CHECK IF CAN TRADE
+    # -----------------------------------------------------
 
-        if pos is None:
-            return 0.0
+    def can_open_trade(self) -> bool:
 
-        size = float(pos["contracts"])
-
-        side = pos["side"].lower()
-
-        if side == "long":
-            return size
-
-        return -size
-
-    # -------------------------
-    # سود و زیان
-    # -------------------------
-
-    async def unrealized_pnl(self):
-
-        pos = await self.get_position()
-
-        if pos is None:
-            return 0.0
-
-        pnl = pos.get("unrealizedPnl", 0)
-
-        return float(pnl)
-
-    # -------------------------
-    # بررسی حد ضرر
-    # -------------------------
-
-    async def stop_loss_hit(self):
-
-        pnl = await self.unrealized_pnl()
-
-        return pnl <= -MAX_ALLOWED_LOSS
-
-    # -------------------------
-    # هج اضطراری
-    # -------------------------
-
-    async def hedge_position(self):
-
-        pos = await self.get_position()
-
-        if pos is None:
-            return
-
-        size = float(pos["contracts"])
-
-        if size == 0:
-            return
-
-        side = pos["side"].lower()
-
-        hedge_side = "sell" if side == "long" else "buy"
-
-        logger.warning(f"Hedge -> {hedge_side} {size}")
-
-        await client.create_market_order(
-            symbol=SYMBOL,
-            side=hedge_side,
-            amount=size,
-        )
-
-    # -------------------------
-    # کنترل حجم
-    # -------------------------
-
-    async def inventory_limit_hit(self):
-
-        inv = abs(await self.inventory())
-
-        return inv >= MAX_INVENTORY
-
-    # -------------------------
-    # مدیریت ریسک
-    # -------------------------
-
-    async def evaluate(self):
-
-        if self.in_cooldown:
+        # 1. Daily loss check
+        if self.daily_loss >= self.max_daily_loss_percent:
             return False
 
-        if await self.stop_loss_hit():
-            logger.error("Emergency Stop Loss Triggered")
-
-            await self.hedge_position()
-
-            self.start_cooldown()
-
+        # 2. Max trades per day
+        if self.trades_today >= self.max_trades_per_day:
             return False
 
-        if await self.inventory_limit_hit():
-            logger.warning("Inventory Limit Exceeded")
+        # 3. Consecutive losses
+        if self.consecutive_losses >= self.max_consecutive_losses:
+            return False
 
-            await self.hedge_position()
+        # 4. Cooldown after loss
+        if self.last_loss_time:
+            if datetime.utcnow() - self.last_loss_time < timedelta(
+                seconds=self.cooldown_after_loss_sec
+            ):
+                return False
 
         return True
 
+    # -----------------------------------------------------
+    # ON TRADE RESULT
+    # -----------------------------------------------------
 
-risk_manager = RiskManager()
+    def on_trade_result(self, pnl: float):
+
+        self.trades_today += 1
+
+        if pnl < 0:
+            self.consecutive_losses += 1
+
+            self.last_loss_time = datetime.utcnow()
+
+        else:
+            self.consecutive_losses = 0
+
+    # -----------------------------------------------------
+    # RESET DAILY
+    # -----------------------------------------------------
+
+    def reset_daily(self):
+
+        self.daily_start_balance = self.current_balance
+
+        self.daily_loss = 0.0
+
+        self.trades_today = 0
+
+        self.consecutive_losses = 0
+
+        self.last_loss_time = None
