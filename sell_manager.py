@@ -60,18 +60,7 @@ class SellManager:
 
                 return False
 
-            # ---------------------------------
-            # Balance
-            # ---------------------------------
-
-            balance = await self.exchange.fetch_balance()
-
-            # ---------------------------------
-            # Position Size
-            # ---------------------------------
-
             order_size = self.risk_manager.calculate_position_size(
-                balance=balance,
                 entry_price=signal["entry"],
                 stop_loss=signal["stop_loss"],
             )
@@ -80,7 +69,25 @@ class SellManager:
                 logger.warning("Calculated order size is zero.")
 
                 return False
+            order_size = await self.exchange.amount_to_precision(
+                symbol,
+                order_size,
+            )
 
+            entry_price = await self.exchange.price_to_precision(
+                symbol,
+                signal["entry"],
+            )
+            if not await self.exchange.validate_order(
+                symbol=symbol,
+                amount=order_size,
+                price=entry_price,
+            ):
+                logger.warning(
+                    "%s | Order validation failed.",
+                    symbol,
+                )
+                return False
             # ---------------------------------
             # Create Order
             # ---------------------------------
@@ -89,7 +96,7 @@ class SellManager:
                 symbol=symbol,
                 side="sell",
                 amount=order_size,
-                price=signal["entry"],
+                price=entry_price,
             )
 
             if not order:
@@ -98,12 +105,11 @@ class SellManager:
                 return False
 
             logger.info(
-                "SELL order created | %s | %.6f @ %.4f",
+                "%s | SELL %.8f @ %.8f",
                 symbol,
                 order_size,
-                signal["entry"],
+                entry_price,
             )
-
             return True
 
         except Exception:

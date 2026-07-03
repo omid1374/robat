@@ -48,7 +48,10 @@ class RiskManager:
 
         if self.daily_start_balance is None:
             self.daily_start_balance = balance
-
+        if self.daily_start_balance <= 0:
+            self.daily_loss = 0.0
+            self.current_balance = balance
+            return
         self.current_balance = balance
 
         self.daily_loss = (
@@ -60,6 +63,9 @@ class RiskManager:
     # -----------------------------------------------------
 
     def can_open_trade(self) -> bool:
+        # 0. Balance must be initialized
+        if self.current_balance is None:
+            return False
 
         # 1. Daily loss check
         if self.daily_loss >= self.max_daily_loss_percent:
@@ -113,3 +119,44 @@ class RiskManager:
         self.consecutive_losses = 0
 
         self.last_loss_time = None
+
+    # -----------------------------------------------------
+    # POSITION SIZE
+    # -----------------------------------------------------
+
+    # -----------------------------------------------------
+    # POSITION SIZE
+    # -----------------------------------------------------
+
+    def calculate_position_size(
+        self,
+        entry_price: float,
+        stop_loss: float,
+        risk_percent: float = 1.0,
+    ) -> float:
+        """
+        Calculate position size using the latest account balance.
+        """
+
+        try:
+            if self.current_balance is None:
+                return 0.0
+
+            account_balance = float(self.current_balance)
+
+            if account_balance <= 0:
+                return 0.0
+
+            stop_distance = abs(entry_price - stop_loss)
+
+            if stop_distance <= 0:
+                return 0.0
+
+            risk_amount = account_balance * (risk_percent / 100)
+
+            position_size = risk_amount / stop_distance
+
+            return max(position_size, 0.0)
+
+        except Exception:
+            return 0.0

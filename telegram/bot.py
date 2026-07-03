@@ -23,14 +23,12 @@ from telegram.callbacks import callback_handler
 
 
 class TelegramBot:
-    async def __init__(self, token: str):
+    def __init__(self, token: str):
 
         self.token = token
 
         self.app = Application.builder().token(token).build()
         notifications.bind(self.app.bot)
-        await notifications.start()
-        await notifications.stop()
         self._register_handlers()
 
     # ----------------------------------
@@ -50,20 +48,21 @@ class TelegramBot:
     # Async Lifecycle
     # ----------------------------------
 
-    async def initialize(self):
-        await self.app.initialize()
 
     async def start(self):
-        """
-        شروع ربات بدون بلاک کردن Event Loop
-        """
+
+        await notifications.start()
+
+        await self.app.initialize()
 
         await self.app.start()
 
-        await self.app.updater.start_polling(drop_pending_updates=True)
+        await self.app.updater.start_polling(
+            drop_pending_updates=True
+        )
 
     async def stop(self):
-
+        await notifications.stop()
         await self.app.updater.stop()
 
         await self.app.stop()

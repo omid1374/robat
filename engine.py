@@ -6,9 +6,10 @@ FINAL ARCHITECTURE (Multi-Timeframe Based Engine)
 
 import asyncio
 import logging
-from datetime import datetime
 
-from indicators_engine.calculate_live_indicators import calculate_live_indicators
+from indicators_engine.calculate_live_indicators import (
+    calculate_live_indicators,
+)
 
 from buy_manager import BuyManager
 from sell_manager import SellManager
@@ -30,39 +31,47 @@ class TradingEngine:
 
         self.running = False
 
-        self.risk_manager = RiskManager()
-
-        self.buy_manager = BuyManager(self.client, self.risk_manager)
-
-        self.sell_manager = SellManager(self.client, self.risk_manager)
-
-        self.loop_delay = 2
+        self.initialized = False
 
         self.engine_task = None
 
-        self.initialized = False
+        self.loop_delay = 2
 
-    # -----------------------------------------------------
-    # INIT
-    # -----------------------------------------------------
+        self.risk_manager = RiskManager()
+
+        self.buy_manager = BuyManager(
+            self.client,
+            self.risk_manager,
+        )
+
+        self.sell_manager = SellManager(
+            self.client,
+            self.risk_manager,
+        )
+
+        # نگهداری Taskهای هر سیکل
+        self.symbol_tasks = []
+
+    # --------------------------------------------------
+    # Initialize
+    # --------------------------------------------------
 
     async def initialize(self):
 
         if self.initialized:
             return
 
-        logger.info("Starting Engine...")
+        logger.info("Starting Trading Engine...")
 
         await self.client.connect()
-        await self.client.load_markets()
 
         self.initialized = True
 
-        logger.info("Engine initialized successfully.")
+        logger.info("Trading Engine initialized.")
 
-    # -----------------------------------------------------
-    # MAIN LOOP
-    # -----------------------------------------------------
+    # --------------------------------------------------
+    # Start / Stop
+    # --------------------------------------------------
 
     async def start(self):
 
@@ -84,10 +93,15 @@ class TradingEngine:
 
             try:
                 await self.engine_task
+
             except asyncio.CancelledError:
-                pass
+                logger.info("Engine task cancelled.")
 
             self.engine_task = None
+
+    # --------------------------------------------------
+    # Main Loop
+    # --------------------------------------------------
 
     async def run(self):
 
@@ -99,34 +113,75 @@ class TradingEngine:
 
                 await asyncio.sleep(self.loop_delay)
 
-            except Exception as e:
-                logger.exception(f"Engine loop error: {e}")
+            except asyncio.CancelledError:
+                logger.info("Engine loop cancelled.")
+
+                break
+
+            except Exception:
+                logger.exception("Engine loop failed.")
 
                 await asyncio.sleep(3)
 
-    # -----------------------------------------------------
-    # PROCESS ALL SYMBOLS
-    # -----------------------------------------------------
+    # --------------------------------------------------
+    # Process All Symbols
+    # --------------------------------------------------
 
     async def process_all_symbols(self):
 
-        tasks = []
-
-        for symbol in self.symbols:
-            tasks.append(self.process_symbol(symbol))
-
-        await asyncio.gather(*tasks, return_exceptions=True)
-
-    # -----------------------------------------------------
-    # PROCESS SINGLE SYMBOL
-    # -----------------------------------------------------
-
-    async def process_symbol(self, symbol: str):
+        # -----------------------------
+        # Update balance ONCE
+        # -----------------------------
 
         try:
-            logger.info(f"Processing {symbol}")
+            balance = await self.client.fetch_balance()
 
-            # 1. GET SIGNAL FROM MTF ENGINE
+            balance_value = (
+                balance.get("USDT", {}).get("free")
+                or balance.get("free", {}).get("USDT")
+                or balance.get("USDT", {}).get("total")
+                or balance.get("total", {}).get("USDT")
+                or balance.get("USDT", {}).get("available")
+                or balance.get("available", {}).get("USDT")
+            )
+
+            if balance_value is not None:
+                self.risk_manager.update_balance(float(balance_value))
+
+        except Exception:
+            logger.exception("Failed updating balance.")
+
+        # -----------------------------
+        # Process symbols concurrently
+        # -----------------------------
+
+        self.symbol_tasks = []
+
+        for symbol in self.symbols:
+            self.symbol_tasks.append(asyncio.create_task(self.process_symbol(symbol)))
+
+        await asyncio.gather(
+            *self.symbol_tasks,
+            return_exceptions=True,
+        )
+
+        self.symbol_tasks.clear()
+
+    # --------------------------------------------------
+    # Process Symbol
+    # --------------------------------------------------
+
+    async def process_symbol(
+        self,
+        symbol: str,
+    ):
+
+        try:
+            logger.info(
+                "Processing %s",
+                symbol,
+            )
+
             signal = await calculate_live_indicators(
                 client=self.client,
                 symbol=symbol,
@@ -136,20 +191,38 @@ class TradingEngine:
                 return
 
             logger.info(
-                f"{symbol} | Signal: "
-                f"BUY={signal['buy']} "
-                f"SELL={signal['sell']} "
-                f"CONF={signal['confidence']}"
+                "%s | BUY=%s SELL=%s CONF=%s",
+                symbol,
+                signal["buy"],
+                signal["sell"],
+                signal["confidence"],
             )
 
-            # 2. RISK CHECK
-            if not self.risk_manager.can_open_trade():
-                logger.info(f"{symbol} | Risk blocked trade")
+            if not signal.get("buy") and not signal.get("sell"):
+                logger.debug(
+                    "%s | No trading signal",
+                    symbol,
+                )
 
                 return
 
-            # 3. BUY LOGIC
-            if signal["buy"]:
+            # -------------------------
+            # Risk Check
+            # -------------------------
+
+            if not self.risk_manager.can_open_trade():
+                logger.info(
+                    "%s | Risk blocked trade",
+                    symbol,
+                )
+
+                return
+
+            # -------------------------
+            # BUY
+            # -------------------------
+
+            if signal.get("buy"):
                 await self.buy_manager.execute(
                     symbol=symbol,
                     signal=signal,
@@ -157,8 +230,11 @@ class TradingEngine:
 
                 return
 
-            # 4. SELL LOGIC
-            if signal["sell"]:
+            # -------------------------
+            # SELL
+            # -------------------------
+
+            if signal.get("sell"):
                 await self.sell_manager.execute(
                     symbol=symbol,
                     signal=signal,
@@ -166,23 +242,26 @@ class TradingEngine:
 
                 return
 
-        except Exception as e:
-            logger.exception(f"Error processing {symbol}: {e}")
+        except Exception:
+            logger.exception(
+                "Error processing %s",
+                symbol,
+            )
 
-    # -----------------------------------------------------
-    # SHUTDOWN
-    # -----------------------------------------------------
+    # --------------------------------------------------
+    # Shutdown
+    # --------------------------------------------------
 
     async def shutdown(self):
 
-        logger.info("Shutting down engine...")
+        logger.info("Shutting down Trading Engine...")
 
-        self.running = False
+        await self.stop()
 
         try:
             await self.client.close()
 
         except Exception:
-            pass
+            logger.exception("Failed closing exchange.")
 
-        logger.info("Engine stopped.")
+        logger.info("Trading Engine stopped.")

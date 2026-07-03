@@ -10,6 +10,8 @@ import signal
 import sys
 from telegram.bot_controller import BotController
 from engine import TradingEngine
+from telegram.bot import TelegramBot
+from config import TELEGRAM_TOKEN
 
 
 logging.basicConfig(
@@ -23,7 +25,11 @@ logger = logging.getLogger(__name__)
 class BotApplication:
     def __init__(self):
         self.engine = TradingEngine()
+
+        self.telegram = TelegramBot(TELEGRAM_TOKEN)
+        self.tasks = []
         BotController.instance().bind_engine(self.engine)
+
         self.running = True
 
     async def start(self):
@@ -33,7 +39,14 @@ class BotApplication:
 
         try:
             await self.engine.initialize()
-            await self.engine.run()
+            await self.telegram.start()
+            engine_task = asyncio.create_task(self.engine.run())
+
+            self.tasks = [
+                engine_task,
+            ]
+
+            await asyncio.gather(*self.tasks)
 
         except asyncio.CancelledError:
             logger.info("Bot cancelled.")
@@ -53,11 +66,14 @@ class BotApplication:
         logger.info("Stopping bot...")
 
         try:
+            await self.telegram.stop()
+        except Exception:
+            logger.exception("Error stopping Telegram.")
+
+        try:
             await self.engine.shutdown()
         except Exception:
             logger.exception("Error while shutting down.")
-
-        logger.info("Bot stopped.")
 
 
 async def main():
