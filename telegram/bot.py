@@ -1,11 +1,18 @@
 """
 Telegram Bot main entry
 """
-
+from telegram.commands import (
+    start_command,
+    stop_command,
+    status_command,
+    restart_command,
+)
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 
 from telegram.commands import start_command, status_command, stop_command
+
+app.add_handler(CommandHandler("restart", restart_command))
 
 
 class TelegramBot:
@@ -29,6 +36,7 @@ class TelegramBot:
         self.app.add_handler(CommandHandler("status", self._status))
         self.app.add_handler(CommandHandler("stop", self._stop))
 
+    
     # -----------------------------------------
     # WRAPPERS
     # -----------------------------------------
