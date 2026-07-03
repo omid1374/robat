@@ -38,25 +38,56 @@ class TradingEngine:
 
         self.loop_delay = 2
 
+        self.engine_task = None
+
+        self.initialized = False
+
     # -----------------------------------------------------
     # INIT
     # -----------------------------------------------------
 
     async def initialize(self):
 
+        if self.initialized:
+            return
+
         logger.info("Starting Engine...")
 
         await self.client.connect()
-
         await self.client.load_markets()
 
-        self.running = True
+        self.initialized = True
 
         logger.info("Engine initialized successfully.")
 
     # -----------------------------------------------------
     # MAIN LOOP
     # -----------------------------------------------------
+
+    async def start(self):
+
+        if self.running:
+            return
+
+        await self.initialize()
+
+        self.running = True
+
+        self.engine_task = asyncio.create_task(self.run())
+
+    async def stop(self):
+
+        self.running = False
+
+        if self.engine_task:
+            self.engine_task.cancel()
+
+            try:
+                await self.engine_task
+            except asyncio.CancelledError:
+                pass
+
+            self.engine_task = None
 
     async def run(self):
 

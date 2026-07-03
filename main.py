@@ -8,7 +8,7 @@ import asyncio
 import logging
 import signal
 import sys
-
+from telegram.bot_controller import BotController
 from engine import TradingEngine
 
 
@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 class BotApplication:
     def __init__(self):
         self.engine = TradingEngine()
+        BotController.instance().bind_engine(self.engine)
         self.running = True
 
     async def start(self):

@@ -1,95 +1,76 @@
 """
-core/bot_controller.py
+telegram/bot_controller.py
 """
 
-import asyncio
 import logging
 from typing import Optional
+
+
 
 logger = logging.getLogger(__name__)
 
 
 class BotController:
-    _instance = None
+    _instance: Optional["BotController"] = None
 
     @classmethod
-    def instance(cls):
+    def instance(cls) -> "BotController":
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance
 
     def __init__(self):
-        self.is_running = False
-        self.main_task: Optional[asyncio.Task] = None
 
+        if BotController._instance is not None:
+            raise RuntimeError("BotController is a singleton.")
+
+        self.engine = None
+        
+    def bind_engine(self, engine):
+
+        self.engine = engine
+    
+    @property
+    def is_running(self):
+
+        if self.engine is None:
+            return False
+
+        return self.engine.running
+        
     @property
     def task_count(self):
-        if self.main_task and not self.main_task.done():
-            return 1
-        return 0
+
+        if self.engine is None:
+            return 0
+
+        return 1 if self.engine.engine_task else 0
 
     async def start(self):
-        """شروع ربات"""
 
-        if self.is_running:
+        if self.engine.running:
             return
 
-        self.is_running = True
+        logger.info("Starting Trading Engine...")
 
-        self.main_task = asyncio.create_task(self._run())
-
-        logger.info("Bot Started")
+        await self.engine.start()
 
     async def stop(self):
-        """توقف کامل ربات"""
 
-        if not self.is_running:
+        if not self.engine.running:
             return
 
-        self.is_running = False
+        logger.info("Stopping Trading Engine...")
 
-        if self.main_task:
-            self.main_task.cancel()
-
-            try:
-                await self.main_task
-            except asyncio.CancelledError:
-                pass
-
-            self.main_task = None
-
-        logger.info("Bot Stopped")
+        await self.engine.stop()
 
     async def restart(self):
-        """ریستارت کامل"""
+
+        logger.info("Restarting Trading Engine...")
 
         await self.stop()
-        await asyncio.sleep(1)
         await self.start()
 
-    async def _run(self):
-        """
-        حلقه اصلی ربات
+    async def shutdown(self):
 
-        بعداً موتور ترید داخل این تابع قرار می‌گیرد.
-        """
-
-        try:
-            while self.is_running:
-                # بعداً اینجا:
-                #
-                # await trading_engine.run_cycle()
-                #
-                # یا:
-                # await strategy.execute()
-
-                await asyncio.sleep(1)
-
-        except asyncio.CancelledError:
-            logger.info("Main Task Cancelled")
-
-        except Exception as e:
-            logger.exception(e)
-
-        finally:
-            self.is_running = False
+        await self.stop()
