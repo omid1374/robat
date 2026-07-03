@@ -4,21 +4,27 @@ telegram/callbacks.py
 
 from telegram import Update
 from telegram.ext import ContextTypes
-from core.balance_service import BalanceService
-from core.exchange import exchange
-from core.bot_controller import BotController
+
+from telegram.balance_service import BalanceService
+from telegram.bot_controller import BotController
 from telegram.keyboard import main_menu
+from telegram.balance_service import BalanceService
+from exchange import client
+
+
+
+
+
+
+balance_service = BalanceService(client)
 
 
 async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    balance_service = BalanceService(exchange)
     query = update.callback_query
     await query.answer()
 
     controller = BotController.instance()
-
     data = query.data
-
     # ===========================
     # Start
     # ===========================
@@ -99,17 +105,14 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         balance = await balance_service.get_balance()
 
-        text = f"""
-    💰 Wallet Balance : {balance['wallet_balance']:.2f}
-
-    💵 Available Balance : {balance['available_balance']:.2f}
-
-    📈 Equity : {balance['equity']:.2f}
-
-    📊 Unrealized PNL : {balance['unrealized_pnl']:.2f}
-
-    🕒 {balance['timestamp']}
-    """
+        text = (
+            f"💰 Wallet : {balance['wallet_balance']:.2f} USDT\n"
+            f"💵 Available : {balance['available_balance']:.2f} USDT\n"
+            f"🔒 Used : {balance['used_balance']:.2f} USDT\n"
+            f"📈 Equity : {balance['equity']:.2f} USDT\n"
+            f"📊 Unrealized PNL : {balance['unrealized_pnl']:.2f} USDT\n\n"
+            f"🕒 {balance['timestamp']}"
+        )
 
         await query.edit_message_text(
             text,
