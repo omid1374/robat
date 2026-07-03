@@ -7,6 +7,8 @@ from telegram.ext import (
     CommandHandler,
     CallbackQueryHandler,
 )
+from telegram.notifications import notifications
+
 
 from telegram.commands import (
     start_command,
@@ -21,12 +23,14 @@ from telegram.callbacks import callback_handler
 
 
 class TelegramBot:
-    def __init__(self, token: str):
+    async def __init__(self, token: str):
 
         self.token = token
 
         self.app = Application.builder().token(token).build()
-
+        notifications.bind(self.app.bot)
+        await notifications.start()
+        await notifications.stop()
         self._register_handlers()
 
     # ----------------------------------
