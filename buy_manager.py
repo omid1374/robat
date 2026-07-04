@@ -6,6 +6,8 @@ Buy order manager.
 
 import logging
 from typing import Any
+from exceptions import TradeExecutionUnknown
+
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +87,19 @@ class BuyManager:
 
             return bool(order)
 
+        except TradeExecutionUnknown:
+
+            logger.warning(
+                "%s | Trade status unknown. Verification required.",
+                symbol,
+            )
+
+            raise
+
         except Exception:
-            logger.exception("Buy manager failed.")
+
+            logger.exception(
+                "Buy manager failed.",
+            )
 
             return False

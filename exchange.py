@@ -11,11 +11,8 @@ from config import (
     USE_IPV4,
 )
 import logging
-import aiohttp
-import ccxt.pro as ccxt
-import time
 import asyncio
-
+from exceptions import TradeExecutionUnknown
 
 logger = logging.getLogger(__name__)
 
@@ -142,14 +139,16 @@ class BloFinClient:
             ccxt.NetworkError,
             ccxt.RequestTimeout,
         ):
-            logger.error(
-                "Trade request failed due to network error. No automatic retry performed."
-            )
+            logger.error("Trade status is unknown because of a network error.")
 
-            raise
+            try:
+                await self.close()
+            except Exception:
+                pass
 
-        except Exception:
-            raise
+        raise TradeExecutionUnknown()
+
+    
 
     async def fetch_balance(self):
         await self.ensure_connected()

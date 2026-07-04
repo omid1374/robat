@@ -4,9 +4,10 @@ engine.py
 FINAL ARCHITECTURE (Multi-Timeframe Based Engine)
 """
 
+from datetime import datetime, timezone
 import asyncio
 import logging
-
+from position_manager import PositionManager
 from indicators_engine.calculate_live_indicators import (
     calculate_live_indicators,
 )
@@ -34,7 +35,8 @@ class TradingEngine:
         self.initialized = False
 
         self.engine_task = None
-
+        self.initialized = False
+        self.last_reset_date = None
         self.loop_delay = 2
 
         self.risk_manager = RiskManager()
@@ -43,7 +45,10 @@ class TradingEngine:
             self.client,
             self.risk_manager,
         )
-
+        self.position_manager = PositionManager(
+            self.client,
+            self.risk_manager,
+        )
         self.sell_manager = SellManager(
             self.client,
             self.risk_manager,
@@ -65,9 +70,27 @@ class TradingEngine:
 
         await self.client.connect()
 
-        self.initialized = True
-
         logger.info("Trading Engine initialized.")
+
+    async def _check_daily_reset(self):
+        """
+        Reset daily risk statistics once per UTC day.
+        """
+
+        today = datetime.now(timezone.utc).date()
+
+        if self.last_reset_date is None:
+            self.last_reset_date = today
+            return
+
+        if today != self.last_reset_date:
+            logger.info("New UTC day detected. Resetting daily risk statistics.")
+
+            self.risk_manager.reset_daily()
+
+            self.last_reset_date = today
+
+    
 
     # --------------------------------------------------
     # Start / Stop
@@ -109,6 +132,7 @@ class TradingEngine:
 
         while self.running:
             try:
+                await self._check_daily_reset()
                 await self.process_all_symbols()
 
                 await asyncio.sleep(self.loop_delay)
@@ -189,6 +213,8 @@ class TradingEngine:
 
             if not signal:
                 return
+
+            await self.position_manager.manage(symbol)
 
             logger.info(
                 "%s | BUY=%s SELL=%s CONF=%s",

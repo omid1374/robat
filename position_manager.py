@@ -5,6 +5,10 @@ Professional position management (Prop-Firm style)
 """
 
 import asyncio
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 
 class PositionManager:
@@ -44,8 +48,9 @@ class PositionManager:
             position = await self.client.fetch_position(symbol)
 
             if not position:
-                return
+                self.reset_symbol_state(symbol)
 
+                return
             entry = float(position.get("entryPrice", 0))
 
             current = float(position.get("markPrice", 0))
@@ -55,6 +60,8 @@ class PositionManager:
             side = position.get("side")
 
             if size == 0:
+                self.reset_symbol_state(symbol)
+
                 return
 
             pnl_percent = (
@@ -81,16 +88,12 @@ class PositionManager:
             # 2. TRAILING STOP
             # -----------------------------------------
 
-            if pnl_percent >= self.trailing_start and not self.trailing_active.get(
-                symbol, False
-            ):
+            if pnl_percent >= self.trailing_start:
                 await self.apply_trailing_stop(
                     symbol,
                     position,
                     current,
                 )
-
-                self.trailing_active[symbol] = True
 
             # -----------------------------------------
             # 3. PARTIAL CLOSE
@@ -107,21 +110,13 @@ class PositionManager:
 
                 self.partial_closed[symbol] = True
 
-        except Exception as e:
-            print(f"Position manager error: {e}")
-
-    # -----------------------------------------------------
-    # BREAK EVEN
-    # -----------------------------------------------------
-
-    async def set_break_even(self, symbol, position):
-
-        entry = float(position["entryPrice"])
-
-        await self.client.modify_stop_loss(
-            symbol=symbol,
-            stop_loss=entry,
-        )
+        except Exception:
+            logger.exception(
+                "Position manager failed for %s",
+                symbol,
+            )
+            
+    
 
     # -----------------------------------------------------
     # TRAILING STOP
