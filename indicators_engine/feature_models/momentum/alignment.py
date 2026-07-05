@@ -1,9 +1,7 @@
 from market_features import MarketFeatures
 
-from feature_models.evidence import (
-    Evidence,
-    EvidenceType,
-)
+from feature_models.measurement import Measurement
+from feature_models.measurement_type import MeasurementType
 
 from .base_factor import MomentumFactor
 
@@ -11,27 +9,66 @@ from .base_factor import MomentumFactor
 class MomentumAlignment(
     MomentumFactor,
 ):
-    def evaluate(
+
+    def measure(
         self,
         features: MarketFeatures,
-    ) -> Evidence:
+    ) -> list[Measurement]:
 
-        bullish = features.ema20 > features.ema50 > features.ema200
+        bullish = (
 
-        bearish = features.ema20 < features.ema50 < features.ema200
+            features.ema20 >
+            features.ema50 >
+            features.ema200
+
+        )
+
+        bearish = (
+
+            features.ema20 <
+            features.ema50 <
+            features.ema200
+
+        )
 
         if bullish:
-            aligned = features.macd > 0 and features.rsi > 50
+
+            aligned = (
+
+                features.macd > 0
+
+                and
+
+                features.rsi > 50
+
+            )
 
         elif bearish:
-            aligned = features.macd < 0 and features.rsi < 50
+
+            aligned = (
+
+                features.macd < 0
+
+                and
+
+                features.rsi < 50
+
+            )
 
         else:
+
             aligned = False
 
-        return Evidence(
-            name="momentum_alignment",
-            score=1.0 if aligned else 0.0,
-            reason="Momentum aligned" if aligned else "Momentum conflict",
-            type=EvidenceType.VALIDATION,
-        )
+        return [
+
+            Measurement(
+
+                type=MeasurementType.MOMENTUM_ALIGNMENT,
+
+                value=1.0 if aligned else 0.0,
+
+                unit="bool",
+
+            )
+
+        ]

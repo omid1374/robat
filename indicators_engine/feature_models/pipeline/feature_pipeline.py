@@ -1,6 +1,3 @@
-from market_features import MarketFeatures
-
-from feature_models.feature_result import FeatureResult
 
 from feature_models.pipeline.measurement_pipeline import (
     MeasurementPipeline,
@@ -16,44 +13,26 @@ from feature_models.evidence_aggregator import (
 
 
 class FeaturePipeline:
-    """
-    Complete Feature execution pipeline.
-
-    Feature
-
-        ↓
-
-    Measurements
-
-        ↓
-
-    Evidences
-
-        ↓
-
-    FeatureResult
-    """
-
     def __init__(self):
 
-        self.measurements = MeasurementPipeline()
+        self.measurement_pipeline = MeasurementPipeline()
 
-        self.builders = BuilderPipeline()
+        self.builder_pipeline = BuilderPipeline()
 
         self.aggregator = EvidenceAggregator()
 
     def execute(
         self,
         feature_model,
-        features: MarketFeatures,
-    ) -> FeatureResult:
+        features,
+    ):
 
-        measurements = self.measurements.collect(
+        measurements = self.measurement_pipeline.collect(
             feature_model,
             features,
         )
 
-        evidences = self.builders.build(
+        evidences = self.builder_pipeline.build(
             measurements,
         )
 

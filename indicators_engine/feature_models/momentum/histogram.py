@@ -6,7 +6,7 @@ from feature_models.measurement_type import MeasurementType
 from .base_factor import MomentumFactor
 
 
-class RSIStrength(
+class HistogramStrength(
     MomentumFactor,
 ):
 
@@ -19,9 +19,9 @@ class RSIStrength(
 
             Measurement(
 
-                type=MeasurementType.RSI,
+                type=MeasurementType.MACD_HISTOGRAM,
 
-                value=features.rsi,
+                value=features.macd_hist,
 
                 unit="index",
 

@@ -1,7 +1,7 @@
 from market_features import MarketFeatures
 
 from feature_models.measurement import Measurement
-
+from feature_models.measurement_type import MeasurementType
 from .base_factor import TrendFactor
 
 
@@ -23,7 +23,7 @@ class TrendStructure(
 
         measurements.append(
             Measurement(
-                name="ema_alignment",
+                type=MeasurementType.EMA_ALIGNMENT,
                 value=alignment,
                 unit="score",
             )
@@ -35,7 +35,7 @@ class TrendStructure(
 
         measurements.append(
             Measurement(
-                name="ema_distance",
+                type=MeasurementType.EMA_DISTANCE,
                 value=(distance_1 + distance_2),
                 unit="price",
             )
@@ -43,7 +43,7 @@ class TrendStructure(
 
         measurements.append(
             Measurement(
-                name="price_position",
+                type=MeasurementType.PRICE_POSITION,
                 value=features.close,
                 unit="price",
                 metadata={

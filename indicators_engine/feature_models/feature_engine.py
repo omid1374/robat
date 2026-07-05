@@ -1,60 +1,72 @@
 from market_features import MarketFeatures
 
-from .feature_model import FeatureModel
-from .feature_result import FeatureResult
-from .evidence_aggregator import EvidenceAggregator
-from market_state import MarketState
-from .consensus_engine import ConsensusEngine
-from .evidence_aggregator import (
-    EvidenceAggregator,
+from feature_models.builders.registry import (
+    BuilderRegistry,
 )
 
+from feature_models.feature_registry import (
+    FeatureRegistry,
+)
+
+from feature_models.feature_result import (
+    FeatureResult,
+)
+
+from feature_models.feature_results import (
+    FeatureResults,
+)
+
+
 class FeatureEngine:
-    """
-    Execute every FeatureModel and
-    convert evidences into FeatureResults.
-    """
 
-    def __init__(
+    def __init__(self):
+
+        self.features = FeatureRegistry()
+
+        self.builders = BuilderRegistry()
+
+    def execute(
+
         self,
-        models: list[FeatureModel],
-    ):
 
-        self.models = models
-        self.aggregator = EvidenceAggregator()
-        self.aggregator = EvidenceAggregator()
-        self.consensus_engine = ConsensusEngine()
+        market: MarketFeatures,
 
-    def evaluate(
-        self,
-        features: MarketFeatures,
-    ) -> MarketState:
+    ) -> FeatureResults:
 
-        results = []
+        results = {}
 
-        for model in self.models:
+        for feature in self.features.get_features():
 
-            evidences = model.evaluate(
-                features,
+            measurements = feature.measure(
+                market,
             )
 
-            result = self.aggregator.aggregate(
-                feature=model.NAME,
+            evidences = []
+
+            for measurement in measurements:
+
+                builder = self.builders.resolve(
+                    measurement.type,
+                )
+
+                evidences.append(
+
+                    builder.build(
+                        measurement,
+                    )
+
+                )
+
+            results[feature.NAME.value] = FeatureResult(
+
+                name=feature.NAME.value,
+
                 evidences=evidences,
+
             )
 
-            results.append(
-                result,
-            )
+        return FeatureResults(
 
-        feature_map = {result.feature: result for result in results}
+            results=results,
 
-        state = MarketState(
-            features=feature_map,
         )
-
-        state.consensus = self.consensus_engine.evaluate(
-            state,
-        )
-
-        return state

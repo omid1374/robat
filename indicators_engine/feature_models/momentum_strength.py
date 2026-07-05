@@ -7,6 +7,11 @@ from .feature_type import FeatureType
 
 from .evidence import Evidence
 
+from .momentum.rsi import RSIStrength
+from .momentum.macd import MACDStrength
+from .momentum.histogram import HistogramStrength
+from .momentum.alignment import MomentumAlignment
+
 
 class MomentumStrength(
     BaseFeature,
@@ -16,9 +21,10 @@ class MomentumStrength(
     NAME = FeatureType.MOMENTUM
 
     FACTORS = (
-        "rsi_strength",
-        "macd_strength",
-        "momentum_alignment",
+        RSIStrength(),
+        MACDStrength(),
+        HistogramStrength(),
+        MomentumAlignment(),
     )
 
     def build_evidences(
@@ -26,4 +32,22 @@ class MomentumStrength(
         features: MarketFeatures,
     ) -> list[Evidence]:
 
-        raise NotImplementedError
+        evidences = []
+
+        for factor in self.FACTORS:
+            measurements = factor.measure(
+                features,
+            )
+
+            for measurement in measurements:
+                builder = self.pipeline.resolve(
+                    measurement.type,
+                )
+
+                evidences.append(
+                    builder.build(
+                        measurement,
+                    )
+                )
+
+        return evidences

@@ -1,9 +1,7 @@
 from market_features import MarketFeatures
 
-from feature_models.evidence import (
-    Evidence,
-    EvidenceType,
-)
+from feature_models.measurement import Measurement
+from feature_models.measurement_type import MeasurementType
 
 from .base_factor import VolumeFactor
 
@@ -11,35 +9,22 @@ from .base_factor import VolumeFactor
 class VolumeParticipation(
     VolumeFactor,
 ):
-    def evaluate(
+
+    def measure(
         self,
         features: MarketFeatures,
-    ) -> Evidence:
+    ) -> list[Measurement]:
 
-        ratio = features.volume_ratio
+        return [
 
-        score = self._normalize(
-            ratio,
-            0.7,
-            2.0,
-        )
+            Measurement(
 
-        return Evidence(
-            name="volume_participation",
-            score=score,
-            reason=f"Volume Ratio={ratio:.2f}",
-            type=EvidenceType.QUALITY,
-        )
+                type=MeasurementType.VOLUME_RATIO,
 
-    def _normalize(
-        self,
-        value,
-        minimum,
-        maximum,
-    ):
-        score = (value - minimum) / (maximum - minimum)
+                value=features.volume_ratio,
 
-        return max(
-            0.0,
-            min(score, 1.0),
-        )
+                unit="ratio",
+
+            )
+
+        ]

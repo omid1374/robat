@@ -1,7 +1,7 @@
 from market_features import MarketFeatures
 
 from feature_models.measurement import Measurement
-
+from feature_models.measurement_type import MeasurementType
 from .base_factor import TrendFactor
 
 
@@ -23,7 +23,7 @@ class TrendPersistence(
 
         return [
             Measurement(
-                name="adx",
+                type=MeasurementType.ADX,
                 value=features.adx,
                 unit="index",
             )

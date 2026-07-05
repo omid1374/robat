@@ -1,9 +1,7 @@
 from market_features import MarketFeatures
 
-from feature_models.evidence import (
-    Evidence,
-    EvidenceType,
-)
+from feature_models.measurement import Measurement
+from feature_models.measurement_type import MeasurementType
 
 from .base_factor import MomentumFactor
 
@@ -11,39 +9,22 @@ from .base_factor import MomentumFactor
 class MACDStrength(
     MomentumFactor,
 ):
-    def evaluate(
+
+    def measure(
         self,
         features: MarketFeatures,
-    ) -> Evidence:
+    ) -> list[Measurement]:
 
-        diff = abs(features.macd - features.macd_signal)
+        return [
 
-        score = self._normalize(
-            diff,
-            0,
-            2,
-        )
+            Measurement(
 
-        if features.macd_hist < 0:
-            score *= 0.60
+                type=MeasurementType.MACD,
 
-        return Evidence(
-            name="macd_strength",
-            score=score,
-            reason=f"Hist={features.macd_hist:.2f}",
-            type=EvidenceType.CONFIRMATION,
-        )
+                value=features.macd,
 
-    def _normalize(
-        self,
-        value,
-        minimum,
-        maximum,
-    ):
+                unit="index",
 
-        score = (value - minimum) / (maximum - minimum)
+            )
 
-        return max(
-            0.0,
-            min(score, 1.0),
-        )
+        ]

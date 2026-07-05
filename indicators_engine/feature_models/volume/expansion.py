@@ -1,9 +1,7 @@
 from market_features import MarketFeatures
 
-from feature_models.evidence import (
-    Evidence,
-    EvidenceType,
-)
+from feature_models.measurement import Measurement
+from feature_models.measurement_type import MeasurementType
 
 from .base_factor import VolumeFactor
 
@@ -11,33 +9,22 @@ from .base_factor import VolumeFactor
 class VolumeExpansion(
     VolumeFactor,
 ):
-    def evaluate(
+
+    def measure(
         self,
         features: MarketFeatures,
-    ) -> Evidence:
+    ) -> list[Measurement]:
 
-        score = self._normalize(
-            features.volume_ratio,
-            1.0,
-            3.0,
-        )
+        return [
 
-        return Evidence(
-            name="volume_expansion",
-            score=score,
-            reason=f"Expansion={features.volume_ratio:.2f}",
-            type=EvidenceType.CONFIRMATION,
-        )
+            Measurement(
 
-    def _normalize(
-        self,
-        value,
-        minimum,
-        maximum,
-    ):
-        score = (value - minimum) / (maximum - minimum)
+                type=MeasurementType.VOLUME_EXPANSION,
 
-        return max(
-            0.0,
-            min(score, 1.0),
-        )
+                value=features.volume_ratio,
+
+                unit="ratio",
+
+            )
+
+        ]

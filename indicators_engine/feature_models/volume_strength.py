@@ -4,7 +4,8 @@ from .base_feature import BaseFeature
 from .base_feature_model import BaseFeatureModel
 from .feature_model import FeatureModel
 from .feature_type import FeatureType
-from .evidence import Evidence
+
+from .measurement import Measurement
 
 from .volume.participation import VolumeParticipation
 from .volume.expansion import VolumeExpansion
@@ -16,6 +17,7 @@ class VolumeStrength(
     BaseFeatureModel,
     FeatureModel,
 ):
+
     NAME = FeatureType.VOLUME
 
     FACTORS = (
@@ -24,9 +26,21 @@ class VolumeStrength(
         VolumeConfirmation(),
     )
 
-    def build_evidences(
+    def build_measurements(
         self,
         features: MarketFeatures,
-    ) -> list[Evidence]:
+    ) -> list[Measurement]:
 
-        return [factor.evaluate(features) for factor in self.FACTORS]
+        measurements = []
+
+        for factor in self.FACTORS:
+
+            measurements.extend(
+
+                factor.measure(
+                    features,
+                )
+
+            )
+
+        return measurements

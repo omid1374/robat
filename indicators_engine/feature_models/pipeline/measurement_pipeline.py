@@ -4,14 +4,6 @@ from feature_models.measurement import Measurement
 
 
 class MeasurementPipeline:
-    """
-    Collect measurements from one FeatureModel.
-
-    This pipeline knows nothing about Evidence.
-
-    It only gathers objective market observations.
-    """
-
     def collect(
         self,
         feature_model,
@@ -20,11 +12,16 @@ class MeasurementPipeline:
 
         measurements: list[Measurement] = []
 
-        for factor in feature_model.FACTORS:
+        for factor_type in feature_model.FACTOR_TYPES:
+
+            factor = factor_type()
+
             measurements.extend(
+
                 factor.measure(
                     features,
                 )
+
             )
 
         return measurements

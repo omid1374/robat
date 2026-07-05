@@ -1,20 +1,11 @@
 from dataclasses import dataclass
 
-from .feature_type import FeatureType
+from feature_models.evidence import Evidence
 
 
 @dataclass(slots=True)
 class FeatureResult:
-    """
-    Final output of one FeatureModel.
-    """
 
-    feature: FeatureType
+    name: str
 
-    score: float
-
-    confidence: float
-
-    evidences: int
-
-    reasons: list[str]
+    evidences: list[Evidence]
